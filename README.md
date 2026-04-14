@@ -7,7 +7,7 @@ TypeScript-first CLI for TwitterAPI.io.
 - JSON-first output
 - strict TypeScript
 - stable command contracts
-- lightweight Node.js toolchain
+- latest Node.js LTS baseline
 - clear split between public read endpoints and authenticated write endpoints
 
 ## Scripts
