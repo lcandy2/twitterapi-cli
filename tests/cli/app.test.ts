@@ -1,6 +1,10 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 import { createProgram } from "../../src/cli.js";
-import { resolveConfig } from "../../src/core/config.js";
+import { loadConfigFile, resolveConfig } from "../../src/core/config.js";
 import { type FetchLike, TwitterApiClient } from "../../src/http/client.js";
 
 describe("createProgram", () => {
@@ -75,6 +79,37 @@ describe("createProgram", () => {
   });
 });
 
+describe("loadConfigFile", () => {
+  it("reads ~/.twitterapi/config.json when present", () => {
+    const tempHome = mkdtempSync(join(tmpdir(), "twitterapi-cli-config-"));
+    const configDir = join(tempHome, ".twitterapi");
+    const configPath = join(configDir, "config.json");
+
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        api_key: "file-key",
+        base_url: "https://example.com",
+        timeout: 42,
+      }),
+      { encoding: "utf8", flag: "w" },
+    );
+
+    expect(loadConfigFile({ homeDir: tempHome })).toEqual({
+      apiKey: "file-key",
+      baseUrl: "https://example.com",
+      timeoutMs: 42_000,
+    });
+  });
+
+  it("returns empty config when file is missing", () => {
+    const tempHome = mkdtempSync(join(tmpdir(), "twitterapi-cli-missing-"));
+
+    expect(loadConfigFile({ homeDir: tempHome })).toEqual({});
+  });
+});
+
 describe("resolveConfig", () => {
   it("defaults to public api url and timeout", () => {
     const config = resolveConfig({});
@@ -84,7 +119,7 @@ describe("resolveConfig", () => {
     expect(config.output).toBe("json");
   });
 
-  it("prefers explicit values over env defaults", () => {
+  it("prefers explicit values over env and file defaults", () => {
     const config = resolveConfig(
       {
         apiKey: "cli-key",
@@ -92,13 +127,18 @@ describe("resolveConfig", () => {
       },
       {
         TWITTERAPI_KEY: "env-key",
-        TWITTERAPI_BASE_URL: "https://example.com",
+        TWITTERAPI_BASE_URL: "https://env.example.com",
         TWITTERAPI_TIMEOUT_MS: "15000",
+      },
+      {
+        apiKey: "file-key",
+        baseUrl: "https://file.example.com",
+        timeoutMs: 60_000,
       },
     );
 
     expect(config.apiKey).toBe("cli-key");
-    expect(config.baseUrl).toBe("https://example.com");
+    expect(config.baseUrl).toBe("https://env.example.com");
     expect(config.timeoutMs).toBe(15_000);
     expect(config.output).toBe("jsonl");
   });
