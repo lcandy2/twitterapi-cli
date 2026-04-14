@@ -42,6 +42,10 @@ Important:
 - expected tag format is `v0.1.1`, `v0.1.2`, etc.
 - `id-token: write` is enabled so npm can use OIDC trusted publishing
 - no long-lived `NPM_TOKEN` secret is needed once trusted publishing is configured on npm
+- workflow is pinned to Node 24-compatible action majors:
+  - `actions/checkout@v6`
+  - `actions/setup-node@v6`
+  - `pnpm/action-setup@v5`
 
 ## Principles
 
