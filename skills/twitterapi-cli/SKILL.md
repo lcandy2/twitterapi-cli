@@ -4,6 +4,8 @@ description: Use when the user wants Twitter/X data from TwitterAPI.io via this 
 version: 0.1.0
 license: MIT
 homepage: https://github.com/lcandy2/twitterapi-cli
+tags: [twitter, x, twitterapi, twitterapiio, cli, typescript, nodejs, api, social-media, automation]
+keywords: [twitter search, x search, twitter user info, twitter user tweets, tweet search, twitterapi.io, command line, field filtering, pagination]
 ---
 
 # TwitterAPI CLI
