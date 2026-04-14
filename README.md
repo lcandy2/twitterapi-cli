@@ -29,22 +29,19 @@ How it works:
 3. create a GitHub release with tag `v<package-version>`
 4. GitHub Actions runs checks, builds, and publishes to npm automatically
 
-Required GitHub secret:
+Trusted publishing setup:
 
-```text
-NPM_TOKEN
-```
-
-Recommended setup:
-
-- create an npm automation token for the `twitterapi-cli` package
-- add it in GitHub repo settings → Secrets and variables → Actions → `NPM_TOKEN`
+- configure `twitterapi-cli` on npmjs.com with a trusted publisher
+- provider: GitHub Actions
+- workflow filename: `publish-npm.yml`
+- this requires GitHub-hosted runners
 
 Important:
 
 - the workflow checks that the GitHub release tag matches `package.json`
 - expected tag format is `v0.1.1`, `v0.1.2`, etc.
-- manual publish is no longer necessary once the secret is configured
+- `id-token: write` is enabled so npm can use OIDC trusted publishing
+- no long-lived `NPM_TOKEN` secret is needed once trusted publishing is configured on npm
 
 ## Principles
 
