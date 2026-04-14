@@ -208,6 +208,82 @@ describe("createProgram", () => {
       )}\n`,
     );
   });
+
+  it("renders compact tweet search results with pagination metadata", async () => {
+    const writeSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          tweets: [
+            {
+              id: "s1",
+              text: "match one",
+              createdAt: "now",
+              retweetCount: 1,
+              extra: true,
+            },
+            {
+              id: "s2",
+              text: "match two",
+              createdAt: "later",
+              retweetCount: 2,
+            },
+          ],
+          has_next_page: true,
+          next_cursor: "cursor-next",
+          status: "success",
+          message: "ok",
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "tweet",
+      "search",
+      "openai",
+      "--limit",
+      "1",
+      "--compact",
+      "--cursor",
+      "cursor-1",
+      "--query-type",
+      "Top",
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(writeSpy).toHaveBeenCalledWith(
+      `${JSON.stringify(
+        {
+          tweets: [
+            {
+              id: "s1",
+              text: "match one",
+              createdAt: "now",
+              retweetCount: 1,
+            },
+          ],
+          count: 1,
+          has_next_page: true,
+          next_cursor: "cursor-next",
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  });
 });
 
 describe("loadConfigFile", () => {

@@ -21,7 +21,7 @@ export function createProgram(deps: UserCommandDependencies = {}): Command {
     .option("--timeout <ms>", "Override request timeout in milliseconds");
 
   program.addCommand(createUserCommand(deps));
-  program.addCommand(createTweetCommand());
+  program.addCommand(createTweetCommand(deps));
   program.addCommand(createAuthCommand());
 
   return program;
