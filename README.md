@@ -76,3 +76,11 @@ Implemented:
 - compact field filtering
 - custom `--fields`
 - basic cursor passthrough for paginated endpoints
+
+## Installable skill
+
+This repo also ships a distributable skill under:
+
+```text
+skills/twitterapi-cli/
+```
