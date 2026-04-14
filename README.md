@@ -1,6 +1,8 @@
-# TwitterAPI CLI
+# twitterapi-cli
 
-TypeScript-first CLI for TwitterAPI.io with stable JSON output and broad endpoint coverage.
+A command-line tool for Twitter and X workflows using the TwitterAPI.io service.
+
+You may need an API key from https://twitterapi.io/ to use many commands. This project is an independent CLI and is not affiliated with TwitterAPI.io.
 
 ## Install
 
@@ -14,13 +16,11 @@ Or run without installing:
 npx twitterapi-cli --help
 ```
 
-Compatibility alias:
+You can also use the compatibility alias if you want the shorter command:
 
 ```bash
 npx twitterapi --help
 ```
-
-also works because the package exposes `twitterapi` as a bin alias.
 
 ## Automated npm publishing from GitHub Releases
 
@@ -161,6 +161,10 @@ Important:
 - `twitterapi stream users`
 
 ## Auth/config
+
+To use the service-backed commands, get an API key from https://twitterapi.io/ and provide it through flags, environment variables, or config.
+
+This CLI is an independent open-source project and has no official relationship with TwitterAPI.io, X, or Twitter.
 
 The CLI loads configuration in this order:
 
