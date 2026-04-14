@@ -7,9 +7,7 @@
     "twitterapi": "./dist/bin.js",
     "twapi": "./dist/bin.js"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=24.0.0"

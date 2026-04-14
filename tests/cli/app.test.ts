@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createProgram } from "../../src/cli.js";
 import { resolveConfig } from "../../src/core/config.js";
+import { type FetchLike, TwitterApiClient } from "../../src/http/client.js";
 
 describe("createProgram", () => {
   it("shows top-level commands", () => {
@@ -18,6 +19,59 @@ describe("createProgram", () => {
     program.parse(["node", "twitterapi", "--json", "user", "info", "jack"]);
 
     expect(program.opts()).toMatchObject({ json: true });
+  });
+
+  it("renders user info from the live command handler", async () => {
+    const writeSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "success",
+          data: {
+            id: "12",
+            userName: "jack",
+            name: "Jack",
+            description: "founder",
+            followers: 100,
+          },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "user",
+      "info",
+      "jack",
+      "--compact",
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(writeSpy).toHaveBeenCalledWith(
+      `${JSON.stringify(
+        {
+          id: "12",
+          userName: "jack",
+          name: "Jack",
+          description: "founder",
+          followers: 100,
+        },
+        null,
+        2,
+      )}\n`,
+    );
   });
 });
 
@@ -47,5 +101,69 @@ describe("resolveConfig", () => {
     expect(config.baseUrl).toBe("https://example.com");
     expect(config.timeoutMs).toBe(15_000);
     expect(config.output).toBe("jsonl");
+  });
+});
+
+describe("TwitterApiClient", () => {
+  it("sends x-api-key and query params to the configured endpoint", async () => {
+    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
+      new Response(JSON.stringify({ status: "success", data: { id: "1" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const client = new TwitterApiClient(
+      {
+        apiKey: "secret-key",
+        baseUrl: "https://api.twitterapi.io",
+        timeoutMs: 5_000,
+        output: "json",
+      },
+      fetchMock,
+    );
+
+    await client.getJson("/twitter/user/info", { userName: "jack" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const firstCall = fetchMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    if (!firstCall) {
+      throw new Error("expected fetch to be called");
+    }
+
+    const [url, init] = firstCall;
+    expect(String(url)).toBe(
+      "https://api.twitterapi.io/twitter/user/info?userName=jack",
+    );
+    expect(init?.headers).toMatchObject({ "x-api-key": "secret-key" });
+  });
+
+  it("throws a typed error when the API responds with an error status", async () => {
+    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
+      new Response(JSON.stringify({ status: "error", msg: "User not found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const client = new TwitterApiClient(
+      {
+        apiKey: "secret-key",
+        baseUrl: "https://api.twitterapi.io",
+        timeoutMs: 5_000,
+        output: "json",
+      },
+      fetchMock,
+    );
+
+    await expect(
+      client.getJson("/twitter/user/info", { userName: "missing" }),
+    ).rejects.toMatchObject({
+      name: "TwitterApiError",
+      statusCode: 404,
+      message: "User not found",
+    });
   });
 });

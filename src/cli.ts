@@ -3,9 +3,12 @@
 import { Command } from "commander";
 import { createAuthCommand } from "./commands/auth.js";
 import { createTweetCommand } from "./commands/tweet.js";
-import { createUserCommand } from "./commands/user.js";
+import {
+  type UserCommandDependencies,
+  createUserCommand,
+} from "./commands/user.js";
 
-export function createProgram(): Command {
+export function createProgram(deps: UserCommandDependencies = {}): Command {
   const program = new Command();
 
   program
@@ -17,7 +20,7 @@ export function createProgram(): Command {
     .option("--base-url <url>", "Override API base URL")
     .option("--timeout <ms>", "Override request timeout in milliseconds");
 
-  program.addCommand(createUserCommand());
+  program.addCommand(createUserCommand(deps));
   program.addCommand(createTweetCommand());
   program.addCommand(createAuthCommand());
 

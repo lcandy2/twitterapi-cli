@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { createProgram } from "./cli.js";
 
 async function main(): Promise<void> {
