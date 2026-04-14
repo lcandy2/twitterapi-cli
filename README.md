@@ -1,26 +1,26 @@
-# TwitterAPI
+# TwitterAPI CLI
 
 TypeScript-first CLI for TwitterAPI.io with stable JSON output and broad endpoint coverage.
 
 ## Install
 
 ```bash
-npm install -g twitterapi
+npm install -g twitterapi-cli
 ```
 
 Or run without installing:
 
 ```bash
-npx twitterapi --help
+npx twitterapi-cli --help
 ```
 
 Compatibility alias:
 
 ```bash
-npx twitterapi-cli --help
+npx twitterapi --help
 ```
 
-also works because the package exposes `twitterapi-cli` as a bin alias.
+also works because the package exposes `twitterapi` as a bin alias.
 
 ## Automated npm publishing from GitHub Releases
 
@@ -39,7 +39,7 @@ How it works:
 
 Trusted publishing setup:
 
-- configure `twitterapi` on npmjs.com with a trusted publisher
+- configure `twitterapi-cli` on npmjs.com with a trusted publisher
 - provider: GitHub Actions
 - workflow filename: `publish-npm.yml`
 - this requires GitHub-hosted runners

@@ -1,6 +1,6 @@
 {
-  "name": "twitterapi",
-  "version": "0.2.0",
+  "name": "twitterapi-cli",
+  "version": "0.2.1",
   "description": "A TypeScript CLI for TwitterAPI.io with stable JSON output and agent-friendly ergonomics.",
   "keywords": [
     "twitter",
