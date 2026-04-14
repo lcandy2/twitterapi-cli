@@ -8,9 +8,22 @@ const USER_INFO_COMPACT_FIELDS = [
   "profilePicture",
 ] as const;
 
+const TWEET_COMPACT_FIELDS = [
+  "id",
+  "text",
+  "createdAt",
+  "retweetCount",
+  "replyCount",
+  "likeCount",
+  "quoteCount",
+  "viewCount",
+  "bookmarkCount",
+  "url",
+] as const;
+
 export interface FieldSelectionOptions {
   compact?: boolean;
-  preset?: "userInfo";
+  preset?: "userInfo" | "tweet";
   fields?: string[];
 }
 
@@ -24,6 +37,10 @@ export function applyFieldSelection(
 
   if (options.compact && options.preset === "userInfo") {
     return pickFields(value, [...USER_INFO_COMPACT_FIELDS]);
+  }
+
+  if (options.compact && options.preset === "tweet") {
+    return pickFields(value, [...TWEET_COMPACT_FIELDS]);
   }
 
   return value;

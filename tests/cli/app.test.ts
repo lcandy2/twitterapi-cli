@@ -133,6 +133,81 @@ describe("createProgram", () => {
       )}\n`,
     );
   });
+
+  it("renders compact user tweets with pagination metadata", async () => {
+    const writeSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          tweets: [
+            {
+              id: "t1",
+              text: "hello",
+              createdAt: "now",
+              likeCount: 5,
+              extra: true,
+            },
+            {
+              id: "t2",
+              text: "world",
+              createdAt: "later",
+              likeCount: 6,
+            },
+          ],
+          has_next_page: true,
+          next_cursor: "cursor-2",
+          status: "success",
+          message: "ok",
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "user",
+      "tweets",
+      "jack",
+      "--limit",
+      "1",
+      "--compact",
+      "--cursor",
+      "cursor-1",
+      "--include-replies",
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(writeSpy).toHaveBeenCalledWith(
+      `${JSON.stringify(
+        {
+          tweets: [
+            {
+              id: "t1",
+              text: "hello",
+              createdAt: "now",
+              likeCount: 5,
+            },
+          ],
+          count: 1,
+          has_next_page: true,
+          next_cursor: "cursor-2",
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  });
 });
 
 describe("loadConfigFile", () => {
@@ -224,6 +299,26 @@ describe("applyFieldSelection", () => {
       followers: 10,
       following: 5,
       profilePicture: "https://example.com/avatar.jpg",
+    });
+  });
+
+  it("returns compact tweet fields", () => {
+    const result = applyFieldSelection(
+      {
+        id: "t1",
+        text: "hello",
+        createdAt: "now",
+        likeCount: 1,
+        extra: true,
+      },
+      { compact: true, preset: "tweet" },
+    );
+
+    expect(result).toEqual({
+      id: "t1",
+      text: "hello",
+      createdAt: "now",
+      likeCount: 1,
     });
   });
 
