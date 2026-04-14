@@ -2,6 +2,18 @@
 
 TypeScript-first CLI for TwitterAPI.io with stable JSON output and broad endpoint coverage.
 
+## Install
+
+```bash
+npm install -g twitterapi-cli
+```
+
+Or run without installing:
+
+```bash
+npx twitterapi-cli --help
+```
+
 ## Principles
 
 - JSON-first output

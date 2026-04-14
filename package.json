@@ -1,13 +1,32 @@
 {
-  "name": "@citron/twitterapi-cli",
+  "name": "twitterapi-cli",
   "version": "0.1.0",
   "description": "A TypeScript CLI for TwitterAPI.io with stable JSON output and agent-friendly ergonomics.",
+  "keywords": [
+    "twitter",
+    "x",
+    "twitterapi",
+    "twitterapi.io",
+    "cli",
+    "typescript"
+  ],
+  "homepage": "https://github.com/lcandy2/twitterapi-cli#readme",
+  "bugs": {
+    "url": "https://github.com/lcandy2/twitterapi-cli/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lcandy2/twitterapi-cli.git"
+  },
   "type": "module",
   "bin": {
-    "twitterapi": "./dist/bin.js",
-    "twapi": "./dist/bin.js"
+    "twitterapi": "dist/bin.js",
+    "twapi": "dist/bin.js"
   },
   "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=24.0.0"

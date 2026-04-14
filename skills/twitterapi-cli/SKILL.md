@@ -1,6 +1,6 @@
 ---
 name: twitterapi-cli
-description: Use when the user wants Twitter/X data from TwitterAPI.io via this repo's TypeScript CLI. Covers setup, config loading, user info, user tweets, tweet search, compact output, field filtering, and pagination flags. Use this whenever the task involves querying TwitterAPI.io from the command line or from automation.
+description: Use when the user wants Twitter/X data from TwitterAPI.io via the published TypeScript CLI package. Covers install via npx/npm, config loading, full endpoint coverage, compact output, field filtering, and pagination flags. Use this whenever the task involves querying TwitterAPI.io from the command line or from automation.
 version: 0.1.0
 license: MIT
 homepage: https://github.com/lcandy2/twitterapi-cli
@@ -10,15 +10,13 @@ keywords: [twitter search, x search, twitter user info, twitter user tweets, twe
 
 # TwitterAPI CLI
 
-This skill is for the TypeScript CLI in this repository.
+This skill is for the published TypeScript CLI package and the source repo behind it.
 
 ## What it covers
 
 - install and local setup
 - config loading from `~/.twitterapi/config.json`
-- `user info`
-- `user tweets`
-- `tweet search`
+- full documented TwitterAPI.io endpoint coverage
 - compact output
 - custom field filtering
 - cursor-based pagination passthrough
@@ -30,6 +28,18 @@ This skill is for the TypeScript CLI in this repository.
 - TwitterAPI.io API key
 
 ## Install
+
+Public package:
+
+```bash
+npx twitterapi-cli --help
+```
+
+Or install globally:
+
+```bash
+npm install -g twitterapi-cli
+```
 
 From the repo root:
 
@@ -64,6 +74,8 @@ The CLI loads config in this order:
 - `TWITTERAPI_KEY`
 - `TWITTERAPI_BASE_URL`
 - `TWITTERAPI_TIMEOUT_MS`
+- `TWITTERAPI_PROXY`
+- `TWITTERAPI_LOGIN_COOKIES`
 
 ### Config file
 
@@ -79,7 +91,9 @@ Example:
 {
   "api_key": "your-api-key",
   "base_url": "https://api.twitterapi.io",
-  "timeout": 30
+  "timeout": 30,
+  "proxy": "http://user:pass@host:port",
+  "login_cookies": "base64-or-raw-cookie-string"
 }
 ```
 
@@ -87,32 +101,14 @@ Example:
 
 ## Commands
 
-### User info
+### Common commands
 
 ```bash
-pnpm dev user info elonmusk
-pnpm dev user info elonmusk --compact
-pnpm dev user info elonmusk --fields id,userName,name,followers
-```
-
-### User tweets
-
-```bash
-pnpm dev user tweets elonmusk --limit 5
-pnpm dev user tweets elonmusk --limit 5 --compact
-pnpm dev user tweets elonmusk --limit 5 --fields id,text,createdAt
-pnpm dev user tweets elonmusk --cursor '<cursor>'
-pnpm dev user tweets elonmusk --include-replies
-```
-
-### Tweet search
-
-```bash
-pnpm dev tweet search "openai" --limit 5
-pnpm dev tweet search "openai" --limit 5 --compact
-pnpm dev tweet search "openai" --limit 5 --fields id,text,createdAt
-pnpm dev tweet search "openai" --query-type Top
-pnpm dev tweet search "openai" --cursor '<cursor>'
+npx twitterapi-cli user info elonmusk --compact
+npx twitterapi-cli user followers elonmusk --page-size 50 --compact
+npx twitterapi-cli tweet search "openai" --limit 5 --compact
+npx twitterapi-cli trend get 1 --count 30
+npx twitterapi-cli my info
 ```
 
 ## Output behavior
@@ -137,10 +133,26 @@ Notes:
 
 ## Pagination behavior
 
-Current paginated commands expose cursor passthrough:
+Current paginated commands expose cursor passthrough across multiple read commands, including:
 
+- `user timeline --cursor <cursor>`
 - `user tweets --cursor <cursor>`
+- `user followers --cursor <cursor>`
+- `user following --cursor <cursor>`
+- `user mentions --cursor <cursor>`
 - `tweet search --cursor <cursor>`
+- `tweet replies --cursor <cursor>`
+- `tweet replies-v2 --cursor <cursor>`
+- `tweet quotes --cursor <cursor>`
+- `tweet retweeters --cursor <cursor>`
+- `tweet thread --cursor <cursor>`
+- `list timeline --cursor <cursor>`
+- `list followers --cursor <cursor>`
+- `list members --cursor <cursor>`
+- `community members --cursor <cursor>`
+- `community moderators --cursor <cursor>`
+- `community tweets --cursor <cursor>`
+- `community search --cursor <cursor>`
 
 Responses include:
 
@@ -159,22 +171,23 @@ pnpm build
 Try a real call:
 
 ```bash
-pnpm dev user info elonmusk --compact
+npx twitterapi-cli user info elonmusk --compact
 ```
 
 ## Repo notes
 
 - Entry point: `src/bin.ts`
 - Root command builder: `src/cli.ts`
+- Shared command helpers: `src/commands/shared.ts`
 - User commands: `src/commands/user.ts`
 - Tweet commands: `src/commands/tweet.ts`
+- List/community/trend/space/my/auth/dm/media/profile/webhook/stream commands under `src/commands/`
 - HTTP client: `src/http/client.ts`
 - Filtering: `src/output/filtering.ts`
 - Rendering: `src/output/render.ts`
 
 ## Current limitations
 
-- no `followers` / `following` commands yet
-- no `tweet replies` / `quotes` / `retweeters` / `thread` yet
+- not every mutating endpoint has been live-fired against a real account
 - no `--all` multi-page fetch loop yet
 - JSONL support is not fully specialized for multi-item streaming yet
