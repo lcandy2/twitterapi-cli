@@ -8,13 +8,42 @@ import { loadConfigFile, resolveConfig } from "../../src/core/config.js";
 import { type FetchLike, TwitterApiClient } from "../../src/http/client.js";
 import { applyFieldSelection } from "../../src/output/filtering.js";
 
+function readHeader(init: RequestInit | undefined, key: string): string | null {
+  if (!init?.headers) {
+    return null;
+  }
+
+  return new Headers(init.headers).get(key);
+}
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 describe("createProgram", () => {
-  it("shows top-level commands", () => {
+  it("shows full top-level command groups", () => {
     const program = createProgram();
 
     const commandNames = program.commands.map((command) => command.name());
 
-    expect(commandNames).toEqual(["user", "tweet", "auth"]);
+    expect(commandNames).toEqual([
+      "user",
+      "tweet",
+      "list",
+      "community",
+      "trend",
+      "space",
+      "my",
+      "auth",
+      "dm",
+      "media",
+      "profile",
+      "webhook",
+      "stream",
+    ]);
   });
 
   it("supports stable json output option on root command", () => {
@@ -32,31 +61,26 @@ describe("createProgram", () => {
       .mockImplementation(() => true);
 
     const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          status: "success",
-          data: {
-            id: "12",
-            userName: "jack",
-            name: "Jack",
-            description: "founder",
-            followers: 100,
-            following: 20,
-            profilePicture: "https://example.com/avatar.jpg",
-            extra: "ignored",
-          },
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
+      jsonResponse({
+        status: "success",
+        data: {
+          id: "12",
+          userName: "jack",
+          name: "Jack",
+          description: "founder",
+          followers: 100,
+          following: 20,
+          profilePicture: "https://example.com/avatar.jpg",
+          extra: "ignored",
         },
-      ),
+      }),
     );
 
     const program = createProgram({
       fetch: fetchMock,
       env: { TWITTERAPI_KEY: "env-key" },
     });
+
     await program.parseAsync([
       "node",
       "twitterapi",
@@ -84,124 +108,55 @@ describe("createProgram", () => {
     );
   });
 
-  it("renders custom selected fields from the live command handler", async () => {
+  it("renders user followers with pagination metadata", async () => {
     const writeSpy = vi
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
 
     const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          status: "success",
-          data: {
-            id: "12",
-            userName: "jack",
-            name: "Jack",
-            description: "founder",
-            followers: 100,
-          },
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      ),
+      jsonResponse({
+        users: [
+          { id: "1", userName: "alpha", name: "Alpha", followers: 10 },
+          { id: "2", userName: "beta", name: "Beta", followers: 20 },
+        ],
+        has_next_page: true,
+        next_cursor: "next-1",
+      }),
     );
 
     const program = createProgram({
       fetch: fetchMock,
       env: { TWITTERAPI_KEY: "env-key" },
     });
+
     await program.parseAsync([
       "node",
       "twitterapi",
       "user",
-      "info",
+      "followers",
       "jack",
-      "--fields",
-      "id,userName",
-    ]);
-
-    expect(writeSpy).toHaveBeenCalledWith(
-      `${JSON.stringify(
-        {
-          id: "12",
-          userName: "jack",
-        },
-        null,
-        2,
-      )}\n`,
-    );
-  });
-
-  it("renders compact user tweets with pagination metadata", async () => {
-    const writeSpy = vi
-      .spyOn(process.stdout, "write")
-      .mockImplementation(() => true);
-
-    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          tweets: [
-            {
-              id: "t1",
-              text: "hello",
-              createdAt: "now",
-              likeCount: 5,
-              extra: true,
-            },
-            {
-              id: "t2",
-              text: "world",
-              createdAt: "later",
-              likeCount: 6,
-            },
-          ],
-          has_next_page: true,
-          next_cursor: "cursor-2",
-          status: "success",
-          message: "ok",
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      ),
-    );
-
-    const program = createProgram({
-      fetch: fetchMock,
-      env: { TWITTERAPI_KEY: "env-key" },
-    });
-    await program.parseAsync([
-      "node",
-      "twitterapi",
-      "user",
-      "tweets",
-      "jack",
-      "--limit",
-      "1",
-      "--compact",
+      "--page-size",
+      "50",
       "--cursor",
       "cursor-1",
-      "--include-replies",
+      "--compact",
     ]);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe(
+      "https://api.twitterapi.io/twitter/user/followers?userName=jack&cursor=cursor-1&pageSize=50",
+    );
     expect(writeSpy).toHaveBeenCalledWith(
       `${JSON.stringify(
         {
-          tweets: [
-            {
-              id: "t1",
-              text: "hello",
-              createdAt: "now",
-              likeCount: 5,
-            },
+          users: [
+            { id: "1", userName: "alpha", name: "Alpha", followers: 10 },
+            { id: "2", userName: "beta", name: "Beta", followers: 20 },
           ],
-          count: 1,
+          count: 2,
           has_next_page: true,
-          next_cursor: "cursor-2",
+          next_cursor: "next-1",
         },
         null,
         2,
@@ -215,39 +170,32 @@ describe("createProgram", () => {
       .mockImplementation(() => true);
 
     const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          tweets: [
-            {
-              id: "s1",
-              text: "match one",
-              createdAt: "now",
-              retweetCount: 1,
-              extra: true,
-            },
-            {
-              id: "s2",
-              text: "match two",
-              createdAt: "later",
-              retweetCount: 2,
-            },
-          ],
-          has_next_page: true,
-          next_cursor: "cursor-next",
-          status: "success",
-          message: "ok",
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      ),
+      jsonResponse({
+        tweets: [
+          {
+            id: "s1",
+            text: "match one",
+            createdAt: "now",
+            retweetCount: 1,
+            extra: true,
+          },
+          {
+            id: "s2",
+            text: "match two",
+            createdAt: "later",
+            retweetCount: 2,
+          },
+        ],
+        has_next_page: true,
+        next_cursor: "cursor-next",
+      }),
     );
 
     const program = createProgram({
       fetch: fetchMock,
       env: { TWITTERAPI_KEY: "env-key" },
     });
+
     await program.parseAsync([
       "node",
       "twitterapi",
@@ -284,6 +232,219 @@ describe("createProgram", () => {
       )}\n`,
     );
   });
+
+  it("posts login credentials to auth login", async () => {
+    const writeSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ login_cookie: "cookie-value" }));
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "auth",
+      "login",
+      "--user-name",
+      "citron",
+      "--email",
+      "citron@example.com",
+      "--password",
+      "secret",
+      "--proxy",
+      "http://proxy.local",
+      "--totp-secret",
+      "totp",
+    ]);
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(
+      JSON.stringify({
+        user_name: "citron",
+        email: "citron@example.com",
+        password: "secret",
+        proxy: "http://proxy.local",
+        totp_secret: "totp",
+      }),
+    );
+    expect(writeSpy).toHaveBeenCalledWith(
+      `${JSON.stringify({ login_cookie: "cookie-value" }, null, 2)}\n`,
+    );
+  });
+
+  it("posts tweet creation body with login cookies and media ids", async () => {
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ ok: true, tweet_id: "tweet-1" }));
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: {
+        TWITTERAPI_KEY: "env-key",
+        TWITTERAPI_LOGIN_COOKIES: "cookie-string",
+        TWITTERAPI_PROXY: "http://proxy.local",
+      },
+    });
+
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "tweet",
+      "create",
+      "hello world",
+      "--reply-to-tweet-id",
+      "123",
+      "--media-ids",
+      "m1,m2",
+      "--community-id",
+      "c1",
+      "--note-tweet",
+    ]);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe(
+      "https://api.twitterapi.io/twitter/create_tweet_v2",
+    );
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      login_cookies: "cookie-string",
+      tweet_text: "hello world",
+      proxy: "http://proxy.local",
+      reply_to_tweet_id: "123",
+      media_ids: ["m1", "m2"],
+      community_id: "c1",
+      is_note_tweet: true,
+    });
+  });
+
+  it("sends a delete request body for webhook rule deletion", async () => {
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ ok: true }));
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "webhook",
+      "delete-rule",
+      "rule-1",
+    ]);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe(
+      "https://api.twitterapi.io/oapi/tweet_filter/delete_rule",
+    );
+    expect(init?.method).toBe("DELETE");
+    expect(init?.body).toBe(JSON.stringify({ rule_id: "rule-1" }));
+  });
+
+  it("uploads multipart media data", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "twitterapi-cli-media-"));
+    const mediaPath = join(tempDir, "hello.txt");
+    writeFileSync(mediaPath, "hello media", "utf8");
+
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ media_id: "media-1" }));
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: {
+        TWITTERAPI_KEY: "env-key",
+        TWITTERAPI_LOGIN_COOKIES: "cookie-string",
+        TWITTERAPI_PROXY: "http://proxy.local",
+      },
+    });
+
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "media",
+      "upload",
+      mediaPath,
+      "--long-video",
+    ]);
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.method).toBe("POST");
+    expect(readHeader(init, "x-api-key")).toBe("env-key");
+    expect(init?.body).toBeInstanceOf(FormData);
+    const form = init?.body as FormData;
+    expect(form.get("login_cookies")).toBe("cookie-string");
+    expect(form.get("proxy")).toBe("http://proxy.local");
+    expect(form.get("is_long_video")).toBe("true");
+    expect(form.get("file")).toBeInstanceOf(File);
+  });
+
+  it("patches avatar with multipart payload", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "twitterapi-cli-avatar-"));
+    const filePath = join(tempDir, "avatar.png");
+    writeFileSync(filePath, "avatar bytes", "utf8");
+
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ ok: true }));
+    const program = createProgram({
+      fetch: fetchMock,
+      env: {
+        TWITTERAPI_KEY: "env-key",
+        TWITTERAPI_LOGIN_COOKIES: "cookie-string",
+        TWITTERAPI_PROXY: "http://proxy.local",
+      },
+    });
+
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "profile",
+      "update-avatar",
+      filePath,
+    ]);
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.method).toBe("PATCH");
+    expect(init?.body).toBeInstanceOf(FormData);
+    const form = init?.body as FormData;
+    expect(form.get("login_cookies")).toBe("cookie-string");
+    expect(form.get("file")).toBeInstanceOf(File);
+  });
+
+  it("posts stream monitor requests", async () => {
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ ok: true }));
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "stream",
+      "add-user",
+      "elonmusk",
+    ]);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe(
+      "https://api.twitterapi.io/oapi/x_user_stream/add_user_to_monitor_tweet",
+    );
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ x_user_name: "elonmusk" }));
+  });
 });
 
 describe("loadConfigFile", () => {
@@ -299,6 +460,8 @@ describe("loadConfigFile", () => {
         api_key: "file-key",
         base_url: "https://example.com",
         timeout: 42,
+        proxy: "http://proxy.local",
+        login_cookies: "cookie-from-file",
       }),
       { encoding: "utf8", flag: "w" },
     );
@@ -307,6 +470,8 @@ describe("loadConfigFile", () => {
       apiKey: "file-key",
       baseUrl: "https://example.com",
       timeoutMs: 42_000,
+      proxy: "http://proxy.local",
+      loginCookies: "cookie-from-file",
     });
   });
 
@@ -331,16 +496,21 @@ describe("resolveConfig", () => {
       {
         apiKey: "cli-key",
         output: "jsonl",
+        loginCookies: "cli-cookie",
       },
       {
         TWITTERAPI_KEY: "env-key",
         TWITTERAPI_BASE_URL: "https://env.example.com",
         TWITTERAPI_TIMEOUT_MS: "15000",
+        TWITTERAPI_PROXY: "http://env.proxy",
+        TWITTERAPI_LOGIN_COOKIES: "env-cookie",
       },
       {
         apiKey: "file-key",
         baseUrl: "https://file.example.com",
         timeoutMs: 60_000,
+        proxy: "http://file.proxy",
+        loginCookies: "file-cookie",
       },
     );
 
@@ -348,6 +518,8 @@ describe("resolveConfig", () => {
     expect(config.baseUrl).toBe("https://env.example.com");
     expect(config.timeoutMs).toBe(15_000);
     expect(config.output).toBe("jsonl");
+    expect(config.proxy).toBe("http://env.proxy");
+    expect(config.loginCookies).toBe("cli-cookie");
   });
 });
 
@@ -417,12 +589,11 @@ describe("applyFieldSelection", () => {
 
 describe("TwitterApiClient", () => {
   it("sends x-api-key and query params to the configured endpoint", async () => {
-    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
-      new Response(JSON.stringify({ status: "success", data: { id: "1" } }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(
+        jsonResponse({ status: "success", data: { id: "1" } }),
+      );
 
     const client = new TwitterApiClient(
       {
@@ -448,16 +619,39 @@ describe("TwitterApiClient", () => {
     expect(String(url)).toBe(
       "https://api.twitterapi.io/twitter/user/info?userName=jack",
     );
-    expect(init?.headers).toMatchObject({ "x-api-key": "secret-key" });
+    expect(readHeader(init, "x-api-key")).toBe("secret-key");
+  });
+
+  it("posts json request bodies", async () => {
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ ok: true }));
+
+    const client = new TwitterApiClient(
+      {
+        apiKey: "secret-key",
+        baseUrl: "https://api.twitterapi.io",
+        timeoutMs: 5_000,
+        output: "json",
+      },
+      fetchMock,
+    );
+
+    await client.postJson("/twitter/like_tweet_v2", { tweet_id: "1" });
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ tweet_id: "1" }));
+    expect(readHeader(init, "content-type")).toBe("application/json");
+    expect(readHeader(init, "x-api-key")).toBe("secret-key");
   });
 
   it("throws a typed error when the API responds with an error status", async () => {
-    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
-      new Response(JSON.stringify({ status: "error", msg: "User not found" }), {
-        status: 404,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(
+        jsonResponse({ status: "error", msg: "User not found" }, 404),
+      );
 
     const client = new TwitterApiClient(
       {

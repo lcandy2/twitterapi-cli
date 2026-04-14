@@ -9,12 +9,16 @@ export interface ConfigOverrides {
   baseUrl?: string;
   timeoutMs?: number;
   output?: OutputMode;
+  proxy?: string;
+  loginCookies?: string;
 }
 
 export interface FileConfig {
   apiKey?: string;
   baseUrl?: string;
   timeoutMs?: number;
+  proxy?: string;
+  loginCookies?: string;
 }
 
 export interface ResolvedConfig {
@@ -22,12 +26,16 @@ export interface ResolvedConfig {
   baseUrl: string;
   timeoutMs: number;
   output: OutputMode;
+  proxy?: string;
+  loginCookies?: string;
 }
 
 export interface ConfigEnv {
   TWITTERAPI_KEY?: string;
   TWITTERAPI_BASE_URL?: string;
   TWITTERAPI_TIMEOUT_MS?: string;
+  TWITTERAPI_PROXY?: string;
+  TWITTERAPI_LOGIN_COOKIES?: string;
 }
 
 export interface LoadConfigFileOptions {
@@ -38,6 +46,8 @@ interface RawConfigFile {
   api_key?: string;
   base_url?: string;
   timeout?: number;
+  proxy?: string;
+  login_cookies?: string;
 }
 
 const DEFAULT_BASE_URL = "https://api.twitterapi.io";
@@ -64,6 +74,8 @@ export function loadConfigFile(
     ...(typeof raw.timeout === "number" && raw.timeout > 0
       ? { timeoutMs: raw.timeout * 1000 }
       : {}),
+    ...(raw.proxy ? { proxy: raw.proxy } : {}),
+    ...(raw.login_cookies ? { loginCookies: raw.login_cookies } : {}),
   };
 }
 
@@ -73,6 +85,11 @@ export function resolveConfig(
   fileConfig: FileConfig = loadConfigFile(),
 ): ResolvedConfig {
   const apiKey = overrides.apiKey ?? env.TWITTERAPI_KEY ?? fileConfig.apiKey;
+  const proxy = overrides.proxy ?? env.TWITTERAPI_PROXY ?? fileConfig.proxy;
+  const loginCookies =
+    overrides.loginCookies ??
+    env.TWITTERAPI_LOGIN_COOKIES ??
+    fileConfig.loginCookies;
 
   return {
     ...(apiKey ? { apiKey } : {}),
@@ -87,6 +104,8 @@ export function resolveConfig(
       fileConfig.timeoutMs ??
       DEFAULT_TIMEOUT_MS,
     output: overrides.output ?? "json",
+    ...(proxy ? { proxy } : {}),
+    ...(loginCookies ? { loginCookies } : {}),
   };
 }
 
