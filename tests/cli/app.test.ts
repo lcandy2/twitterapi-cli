@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createProgram } from "../../src/cli.js";
 import { loadConfigFile, resolveConfig } from "../../src/core/config.js";
 import { type FetchLike, TwitterApiClient } from "../../src/http/client.js";
+import { applyFieldSelection } from "../../src/output/filtering.js";
 
 describe("createProgram", () => {
   it("shows top-level commands", () => {
@@ -25,7 +26,65 @@ describe("createProgram", () => {
     expect(program.opts()).toMatchObject({ json: true });
   });
 
-  it("renders user info from the live command handler", async () => {
+  it("renders compact user info from the live command handler", async () => {
+    const writeSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "success",
+          data: {
+            id: "12",
+            userName: "jack",
+            name: "Jack",
+            description: "founder",
+            followers: 100,
+            following: 20,
+            profilePicture: "https://example.com/avatar.jpg",
+            extra: "ignored",
+          },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "user",
+      "info",
+      "jack",
+      "--compact",
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(writeSpy).toHaveBeenCalledWith(
+      `${JSON.stringify(
+        {
+          id: "12",
+          userName: "jack",
+          name: "Jack",
+          description: "founder",
+          followers: 100,
+          following: 20,
+          profilePicture: "https://example.com/avatar.jpg",
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  });
+
+  it("renders custom selected fields from the live command handler", async () => {
     const writeSpy = vi
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
@@ -59,18 +118,15 @@ describe("createProgram", () => {
       "user",
       "info",
       "jack",
-      "--compact",
+      "--fields",
+      "id,userName",
     ]);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(writeSpy).toHaveBeenCalledWith(
       `${JSON.stringify(
         {
           id: "12",
           userName: "jack",
-          name: "Jack",
-          description: "founder",
-          followers: 100,
         },
         null,
         2,
@@ -141,6 +197,50 @@ describe("resolveConfig", () => {
     expect(config.baseUrl).toBe("https://env.example.com");
     expect(config.timeoutMs).toBe(15_000);
     expect(config.output).toBe("jsonl");
+  });
+});
+
+describe("applyFieldSelection", () => {
+  it("returns compact user info fields", () => {
+    const result = applyFieldSelection(
+      {
+        id: "1",
+        userName: "jack",
+        name: "Jack",
+        description: "bio",
+        followers: 10,
+        following: 5,
+        profilePicture: "https://example.com/avatar.jpg",
+        extra: true,
+      },
+      { compact: true, preset: "userInfo" },
+    );
+
+    expect(result).toEqual({
+      id: "1",
+      userName: "jack",
+      name: "Jack",
+      description: "bio",
+      followers: 10,
+      following: 5,
+      profilePicture: "https://example.com/avatar.jpg",
+    });
+  });
+
+  it("returns explicitly selected fields", () => {
+    const result = applyFieldSelection(
+      {
+        id: "1",
+        userName: "jack",
+        name: "Jack",
+      },
+      { fields: ["id", "name"] },
+    );
+
+    expect(result).toEqual({
+      id: "1",
+      name: "Jack",
+    });
   });
 });
 

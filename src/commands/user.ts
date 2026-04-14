@@ -5,6 +5,7 @@ import {
   TwitterApiClient,
   TwitterApiError,
 } from "../http/client.js";
+import { applyFieldSelection } from "../output/filtering.js";
 import { renderError, renderOutput } from "../output/render.js";
 
 export interface UserCommandDependencies {
@@ -12,6 +13,11 @@ export interface UserCommandDependencies {
   fetch?: FetchLike;
   stdout?: Pick<NodeJS.WriteStream, "write">;
   stderr?: Pick<NodeJS.WriteStream, "write">;
+}
+
+interface UserInfoOptions {
+  compact?: boolean;
+  fields?: string;
 }
 
 interface GlobalOptions {
@@ -30,10 +36,11 @@ export function createUserCommand(deps: UserCommandDependencies = {}): Command {
     .description("Get user profile information")
     .argument("<username>", "Twitter username")
     .option("-c, --compact", "Use compact output")
+    .option("-f, --fields <fields>", "Comma-separated fields to keep")
     .action(
       async (
         username: string,
-        _options: { compact?: boolean },
+        options: UserInfoOptions,
         commandInstance: Command,
       ) => {
         const stdout = deps.stdout ?? process.stdout;
@@ -69,8 +76,20 @@ export function createUserCommand(deps: UserCommandDependencies = {}): Command {
               userName: username.replace(/^@/, ""),
             },
           );
+          const selected = applyFieldSelection(data, {
+            compact: Boolean(options.compact),
+            preset: "userInfo",
+            ...(options.fields
+              ? {
+                  fields: options.fields
+                    .split(",")
+                    .map((field) => field.trim())
+                    .filter(Boolean),
+                }
+              : {}),
+          });
 
-          stdout.write(renderOutput(data, config.output));
+          stdout.write(renderOutput(selected, config.output));
         } catch (error) {
           if (error instanceof TwitterApiError) {
             stderr.write(
