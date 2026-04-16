@@ -83,14 +83,10 @@ const AI_EXAMPLES: Record<string, string[]> = {
   ],
   "twitterapi tweet create": [
     'twitterapi tweet create "hello world"',
-    "twitterapi tweet create \"reply\" --reply-to-tweet-id 2044505743144194514",
+    'twitterapi tweet create "reply" --reply-to-tweet-id 2044505743144194514',
   ],
-  "twitterapi tweet delete": [
-    "twitterapi tweet delete 2044505743144194514",
-  ],
-  "twitterapi tweet like": [
-    "twitterapi tweet like 2044505743144194514",
-  ],
+  "twitterapi tweet delete": ["twitterapi tweet delete 2044505743144194514"],
+  "twitterapi tweet like": ["twitterapi tweet like 2044505743144194514"],
   "twitterapi tweet bookmarks": [
     "twitterapi tweet bookmarks --limit 10 --compact",
   ],
