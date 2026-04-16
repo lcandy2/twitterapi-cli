@@ -10,6 +10,7 @@ import {
   selectEnvelope,
   writeResult,
 } from "./shared.js";
+import { extractTweetId, normalizeTweetIds } from "./url-parser.js";
 
 interface TweetReadOptions {
   limit?: string;
@@ -59,7 +60,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
         try {
           const response = await context.client.getJson<
             Record<string, unknown>[] | { tweets?: Record<string, unknown>[] }
-          >("/twitter/tweets", { tweet_ids: tweetIds });
+          >("/twitter/tweets", { tweet_ids: normalizeTweetIds(tweetIds) });
           const tweets = Array.isArray(response)
             ? response
             : (response.tweets ?? []);
@@ -137,7 +138,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
           deps,
           "/twitter/tweet/replies",
           {
-            tweetId,
+            tweetId: extractTweetId(tweetId),
             ...(options.cursor ? { cursor: options.cursor } : {}),
             ...(options.sinceTime
               ? { sinceTime: Number(options.sinceTime) }
@@ -175,7 +176,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
           deps,
           "/twitter/tweet/replies/v2",
           {
-            tweetId,
+            tweetId: extractTweetId(tweetId),
             queryType: options.queryType ?? "Relevance",
             ...(options.cursor ? { cursor: options.cursor } : {}),
           },
@@ -206,7 +207,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
           deps,
           "/twitter/tweet/quotes",
           {
-            tweetId,
+            tweetId: extractTweetId(tweetId),
             ...(options.cursor ? { cursor: options.cursor } : {}),
             ...(options.includeReplies ? { includeReplies: true } : {}),
             ...(options.sinceTime
@@ -245,7 +246,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
             has_next_page?: boolean;
             next_cursor?: string;
           }>("/twitter/tweet/retweeters", {
-            tweetId,
+            tweetId: extractTweetId(tweetId),
             ...(options.cursor ? { cursor: options.cursor } : {}),
           });
           writeResult(context, {
@@ -279,7 +280,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
           deps,
           "/twitter/tweet/thread_context",
           {
-            tweetId,
+            tweetId: extractTweetId(tweetId),
             ...(options.cursor ? { cursor: options.cursor } : {}),
           },
           options,
@@ -305,7 +306,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
         try {
           const data = await context.client.getJson<Record<string, unknown>>(
             "/twitter/article",
-            { tweet_id: tweetId },
+            { tweet_id: extractTweetId(tweetId) },
           );
           writeResult(context, data);
         } catch (error) {
@@ -345,7 +346,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
             tweet_text: text,
             proxy,
             ...(options.replyToTweetId
-              ? { reply_to_tweet_id: options.replyToTweetId }
+              ? { reply_to_tweet_id: extractTweetId(options.replyToTweetId) }
               : {}),
             ...(options.attachmentUrl
               ? { attachment_url: options.attachmentUrl }
@@ -402,7 +403,7 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
               path,
               {
                 login_cookies: loginCookies,
-                tweet_id: tweetId,
+                tweet_id: extractTweetId(tweetId),
                 proxy,
               },
             );

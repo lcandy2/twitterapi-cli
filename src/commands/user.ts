@@ -12,6 +12,7 @@ import {
   selectRecord,
   writeResult,
 } from "./shared.js";
+import { extractUsername } from "./url-parser.js";
 
 interface ReadOptions {
   compact?: boolean;
@@ -107,7 +108,7 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
         try {
           const data = await context.client.getJson<Record<string, unknown>>(
             "/twitter/user/info",
-            { userName: username.replace(/^@/, "") },
+            { userName: extractUsername(username) },
           );
           writeResult(
             context,
@@ -175,7 +176,7 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
           deps,
           "/twitter/user/last_tweets",
           {
-            userName: username.replace(/^@/, ""),
+            userName: extractUsername(username),
             ...(options.cursor ? { cursor: options.cursor } : {}),
             ...(options.includeReplies ? { includeReplies: true } : {}),
           },
@@ -203,7 +204,7 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
           deps,
           "/twitter/user/followers",
           {
-            userName: username.replace(/^@/, ""),
+            userName: extractUsername(username),
             ...(options.cursor ? { cursor: options.cursor } : {}),
             ...(options.pageSize ? { pageSize: Number(options.pageSize) } : {}),
           },
@@ -231,7 +232,7 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
           deps,
           "/twitter/user/followings",
           {
-            userName: username.replace(/^@/, ""),
+            userName: extractUsername(username),
             ...(options.cursor ? { cursor: options.cursor } : {}),
             ...(options.pageSize ? { pageSize: Number(options.pageSize) } : {}),
           },
@@ -264,7 +265,7 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
           deps,
           "/twitter/user/mentions",
           {
-            userName: username.replace(/^@/, ""),
+            userName: extractUsername(username),
             ...(options.cursor ? { cursor: options.cursor } : {}),
             ...(options.sinceTime
               ? { sinceTime: Number(options.sinceTime) }
@@ -299,8 +300,8 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
           const data = await context.client.getJson<Record<string, unknown>>(
             "/twitter/user/check_follow_relationship",
             {
-              source_user_name: sourceUserName.replace(/^@/, ""),
-              target_user_name: targetUserName.replace(/^@/, ""),
+              source_user_name: extractUsername(sourceUserName),
+              target_user_name: extractUsername(targetUserName),
             },
           );
           writeResult(context, data);
@@ -376,7 +377,7 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
         try {
           const data = await context.client.getJson<Record<string, unknown>>(
             "/twitter/user_about",
-            { userName: username.replace(/^@/, "") },
+            { userName: extractUsername(username) },
           );
           writeResult(context, data);
         } catch (error) {

@@ -445,6 +445,70 @@ describe("createProgram", () => {
     expect(init?.method).toBe("POST");
     expect(init?.body).toBe(JSON.stringify({ x_user_name: "elonmusk" }));
   });
+
+  it("extracts tweet id from x.com url for tweet get", async () => {
+    const fetchMock = vi.fn<FetchLike>().mockResolvedValue(
+      jsonResponse({
+        tweets: [
+          { id: "2044505743144194514", text: "hello", createdAt: "now" },
+        ],
+      }),
+    );
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "tweet",
+      "get",
+      "https://x.com/pbakaus/status/2044505743144194514?s=46",
+      "--compact",
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe(
+      "https://api.twitterapi.io/twitter/tweets?tweet_ids=2044505743144194514",
+    );
+  });
+
+  it("extracts username from x.com url for user info", async () => {
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ id: "1", userName: "pbakaus" }));
+
+    const program = createProgram({
+      fetch: fetchMock,
+      env: { TWITTERAPI_KEY: "env-key" },
+    });
+
+    await program.parseAsync([
+      "node",
+      "twitterapi",
+      "user",
+      "info",
+      "https://x.com/pbakaus",
+      "--compact",
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe(
+      "https://api.twitterapi.io/twitter/user/info?userName=pbakaus",
+    );
+  });
+
+  it("includes AI examples in help output", () => {
+    const program = createProgram();
+    const help = program.helpInformation();
+    expect(help).toContain("Examples:");
+    expect(help).toContain("twitterapi tweet get");
+    expect(help).toContain("twitterapi user info");
+  });
 });
 
 describe("loadConfigFile", () => {
