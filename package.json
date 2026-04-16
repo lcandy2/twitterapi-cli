@@ -1,6 +1,6 @@
 {
   "name": "twitterapi-cli",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "CLI for Twitter and X workflows using the TwitterAPI.io service.",
   "keywords": [
     "twitter",

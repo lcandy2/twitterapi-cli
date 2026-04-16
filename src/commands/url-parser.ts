@@ -5,7 +5,7 @@ export function extractTweetId(input: string): string {
   try {
     const url = new URL(input);
     const match = url.pathname.match(/\/status(?:es)?\/(\d+)/);
-    if (match) {
+    if (match?.[1]) {
       return match[1];
     }
   } catch {
@@ -22,7 +22,7 @@ export function extractUsername(input: string): string {
   try {
     const url = new URL(stripped);
     const match = url.pathname.match(/^\/([A-Za-z0-9_]+)(?:\/.*)?$/);
-    if (match) {
+    if (match?.[1]) {
       return match[1];
     }
   } catch {
