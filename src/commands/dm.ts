@@ -4,6 +4,7 @@ import {
   type CommandDependencies,
   createExecutionContext,
   handleCommandError,
+  reportUsageError,
   requireLoginCookies,
   requireProxy,
   splitCsv,
@@ -11,6 +12,7 @@ import {
 } from "./shared.js";
 
 interface SendDmOptions {
+  mediaId?: string;
   mediaIds?: string;
   replyToMessageId?: string;
 }
@@ -23,7 +25,8 @@ export function createDmCommand(deps: CommandDependencies = {}): Command {
     .description("Send a DM")
     .argument("<userId>", "Target user ID")
     .argument("<text>", "DM text")
-    .option("--media-ids <ids>", "Comma-separated media IDs")
+    .option("--media-id <id>", "Media ID to attach (one per DM)")
+    .option("--media-ids <ids>", "Deprecated: use --media-id")
     .option("--reply-to-message-id <messageId>", "Reply to message ID")
     .action(
       async (
@@ -32,6 +35,15 @@ export function createDmCommand(deps: CommandDependencies = {}): Command {
         options: SendDmOptions,
         commandInstance: Command,
       ) => {
+        const legacyMediaIds = options.mediaIds
+          ? splitCsv(options.mediaIds)
+          : [];
+        if (legacyMediaIds.length > 1) {
+          reportUsageError(deps, "A DM can carry only one media ID.");
+          return;
+        }
+        const mediaId = options.mediaId ?? legacyMediaIds[0];
+
         const context = createExecutionContext(commandInstance, deps);
         if (!context) {
           return;
@@ -49,9 +61,7 @@ export function createDmCommand(deps: CommandDependencies = {}): Command {
               user_id: userId,
               text,
               proxy,
-              ...(options.mediaIds
-                ? { media_ids: splitCsv(options.mediaIds) }
-                : {}),
+              ...(mediaId ? { media_id: mediaId } : {}),
               ...(options.replyToMessageId
                 ? { reply_to_message_id: options.replyToMessageId }
                 : {}),

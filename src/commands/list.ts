@@ -23,6 +23,8 @@ interface ListTweetsResponse {
 }
 
 interface ListUsersResponse {
+  followers?: Record<string, unknown>[];
+  members?: Record<string, unknown>[];
   users?: Record<string, unknown>[];
   has_next_page?: boolean;
   next_cursor?: string;
@@ -115,7 +117,11 @@ export function createListCommand(deps: CommandDependencies = {}): Command {
               context,
               selectEnvelope(
                 {
-                  items: response.users ?? [],
+                  items:
+                    response.followers ??
+                    response.members ??
+                    response.users ??
+                    [],
                   itemKey: "users",
                   hasNextPage: response.has_next_page,
                   nextCursor: response.next_cursor,

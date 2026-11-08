@@ -19,6 +19,7 @@ interface TweetReadOptions {
   sinceTime?: string;
   untilTime?: string;
   includeReplies?: boolean;
+  count?: string;
   compact?: boolean;
   fields?: string;
 }
@@ -193,7 +194,8 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
     .option("--cursor <cursor>", "Pagination cursor")
     .option("--since-time <unix>", "Only include quotes after this timestamp")
     .option("--until-time <unix>", "Only include quotes before this timestamp")
-    .option("--include-replies", "Include reply quotes")
+    .option("--include-replies", "Include reply quotes (API default)")
+    .option("--no-include-replies", "Exclude reply quotes")
     .option("-c, --compact", "Use compact tweet output")
     .option("-f, --fields <fields>", "Comma-separated fields to keep")
     .action(
@@ -209,7 +211,9 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
           {
             tweetId: extractTweetId(tweetId),
             ...(options.cursor ? { cursor: options.cursor } : {}),
-            ...(options.includeReplies ? { includeReplies: true } : {}),
+            ...(options.includeReplies !== undefined
+              ? { includeReplies: options.includeReplies }
+              : {}),
             ...(options.sinceTime
               ? { sinceTime: Number(options.sinceTime) }
               : {}),
@@ -249,12 +253,20 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
             tweetId: extractTweetId(tweetId),
             ...(options.cursor ? { cursor: options.cursor } : {}),
           });
-          writeResult(context, {
-            users: response.users ?? [],
-            count: response.users?.length ?? 0,
-            has_next_page: response.has_next_page ?? false,
-            next_cursor: response.next_cursor ?? "",
-          });
+          writeResult(
+            context,
+            selectEnvelope(
+              {
+                items: response.users ?? [],
+                itemKey: "users",
+                hasNextPage: response.has_next_page,
+                nextCursor: response.next_cursor,
+              },
+              Boolean(options.compact),
+              "userInfo",
+              options.fields,
+            ),
+          );
         } catch (error) {
           handleCommandError(error, context.stderr);
         }
@@ -375,6 +387,9 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
     ["like", "/twitter/like_tweet_v2"],
     ["unlike", "/twitter/unlike_tweet_v2"],
     ["retweet", "/twitter/retweet_tweet_v2"],
+    ["unretweet", "/twitter/unretweet_tweet_v2"],
+    ["pin", "/twitter/pin_tweet_v2"],
+    ["unpin", "/twitter/unpin_tweet_v2"],
     ["bookmark", "/twitter/bookmark_tweet_v2"],
     ["unbookmark", "/twitter/unbookmark_tweet_v2"],
   ] as const) {
@@ -441,7 +456,9 @@ export function createTweetCommand(deps: CommandDependencies = {}): Command {
             login_cookies: loginCookies,
             proxy,
             ...(options.cursor ? { cursor: options.cursor } : {}),
-            ...(options.limit ? { count: parseLimit(options.limit) } : {}),
+            count: options.count
+              ? Number(options.count)
+              : parseLimit(options.limit),
           },
         );
         const limit = parseLimit(options.limit);

@@ -30,6 +30,8 @@ interface TweetsResponse {
 }
 
 interface UsersResponse {
+  members?: Record<string, unknown>[];
+  moderators?: Record<string, unknown>[];
   users?: Record<string, unknown>[];
   has_next_page?: boolean;
   next_cursor?: string;
@@ -103,7 +105,10 @@ export function createCommunityCommand(
             const items =
               itemKey === "tweets"
                 ? (response.tweets ?? [])
-                : (response.users ?? []);
+                : (response.members ??
+                  response.moderators ??
+                  response.users ??
+                  []);
             writeResult(
               context,
               selectEnvelope(
