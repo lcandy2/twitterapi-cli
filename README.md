@@ -86,9 +86,11 @@ Important:
 - `twitterapi user batch-info <userIds>`
 - `twitterapi user info <username>`
 - `twitterapi user timeline <userId>`
-- `twitterapi user tweets <username>`
+- `twitterapi user tweets <username>` (or `twitterapi user tweets --user-id <userId>`)
 - `twitterapi user followers <username>`
+- `twitterapi user followers-ids <username>` (or `--user-id <userId>`), with `--count` and `--cursor`
 - `twitterapi user following <username>`
+- `twitterapi user subscriptions <userId>`
 - `twitterapi user mentions <username>`
 - `twitterapi user relationship <sourceUserName> <targetUserName>`
 - `twitterapi user search <query>`
@@ -96,6 +98,10 @@ Important:
 - `twitterapi user about <username>`
 - `twitterapi user follow <userId>`
 - `twitterapi user unfollow <userId>`
+- `twitterapi user mute <userId>`
+- `twitterapi user unmute <userId>`
+- `twitterapi user block <userId>`
+- `twitterapi user unblock <userId>`
 
 ### Tweet
 
@@ -112,6 +118,9 @@ Important:
 - `twitterapi tweet like <tweetId>`
 - `twitterapi tweet unlike <tweetId>`
 - `twitterapi tweet retweet <tweetId>`
+- `twitterapi tweet unretweet <tweetId>`
+- `twitterapi tweet pin <tweetId>`
+- `twitterapi tweet unpin <tweetId>`
 - `twitterapi tweet bookmark <tweetId>`
 - `twitterapi tweet unbookmark <tweetId>`
 - `twitterapi tweet bookmarks`
@@ -159,6 +168,10 @@ Important:
 - `twitterapi stream add-user <username>`
 - `twitterapi stream remove-user <monitorId>`
 - `twitterapi stream users`
+
+### Not covered
+
+The WebSocket stream (`wss://ws.twitterapi.io/twitter/tweet/websocket`) has no command. Each API key allows one connection, so a CLI session would disconnect whatever is already consuming the stream.
 
 ## Auth/config
 
@@ -219,6 +232,8 @@ twitterapi --proxy http://user:pass@host:port auth login \
 ```bash
 pnpm dev user info elonmusk --compact
 pnpm dev user followers elonmusk --page-size 50 --compact
+pnpm dev user followers-ids elonmusk --count 50
+pnpm dev user subscriptions 44196397 --compact
 pnpm dev tweet search "openai" --limit 5 --compact
 pnpm dev tweet get 1911803830911527103,1911803830911527104 --compact
 pnpm dev trend get 1 --count 30

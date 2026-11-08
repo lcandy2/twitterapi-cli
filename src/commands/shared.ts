@@ -118,6 +118,16 @@ export function requireProxy(
   return null;
 }
 
+export function reportUsageError(
+  deps: CommandDependencies,
+  message: string,
+): void {
+  (deps.stderr ?? process.stderr).write(
+    renderError({ type: "usage_error", message }),
+  );
+  process.exitCode = 1;
+}
+
 export function handleCommandError(
   error: unknown,
   stderr: Pick<NodeJS.WriteStream, "write">,

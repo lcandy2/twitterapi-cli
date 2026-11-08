@@ -138,6 +138,8 @@ Current paginated commands expose cursor passthrough across multiple read comman
 - `user timeline --cursor <cursor>`
 - `user tweets --cursor <cursor>`
 - `user followers --cursor <cursor>`
+- `user followers-ids --cursor <cursor>`
+- `user subscriptions --cursor <cursor>`
 - `user following --cursor <cursor>`
 - `user mentions --cursor <cursor>`
 - `tweet search --cursor <cursor>`

@@ -35,6 +35,13 @@ const AI_EXAMPLES: Record<string, string[]> = {
     "twitterapi user followers elonmusk --compact",
     "twitterapi user followers https://x.com/elonmusk --compact",
   ],
+  "twitterapi user followers-ids": [
+    "twitterapi user followers-ids elonmusk --count 50",
+    "twitterapi user followers-ids --user-id 44196397 --count 50",
+  ],
+  "twitterapi user subscriptions": [
+    "twitterapi user subscriptions 44196397 --compact",
+  ],
   "twitterapi user following": [
     "twitterapi user following elonmusk --compact",
     "twitterapi user following https://x.com/elonmusk --compact",
@@ -87,6 +94,11 @@ const AI_EXAMPLES: Record<string, string[]> = {
   ],
   "twitterapi tweet delete": ["twitterapi tweet delete 2044505743144194514"],
   "twitterapi tweet like": ["twitterapi tweet like 2044505743144194514"],
+  "twitterapi tweet unretweet": [
+    "twitterapi tweet unretweet 2044505743144194514",
+  ],
+  "twitterapi tweet pin": ["twitterapi tweet pin 2044505743144194514"],
+  "twitterapi tweet unpin": ["twitterapi tweet unpin 2044505743144194514"],
   "twitterapi tweet bookmarks": [
     "twitterapi tweet bookmarks --limit 10 --compact",
   ],

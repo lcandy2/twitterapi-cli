@@ -6,6 +6,7 @@ import {
   createExecutionContext,
   handleCommandError,
   parseLimit,
+  reportUsageError,
   requireLoginCookies,
   requireProxy,
   selectEnvelope,
@@ -20,6 +21,8 @@ interface ReadOptions {
   limit?: string;
   cursor?: string;
   pageSize?: string;
+  count?: string;
+  userId?: string;
   includeReplies?: boolean;
   includeParentTweet?: boolean;
   sinceTime?: string;
@@ -39,6 +42,12 @@ interface TimelineResponse {
 
 interface UsersResponse {
   users?: Record<string, unknown>[];
+  has_next_page?: boolean;
+  next_cursor?: string;
+}
+
+interface FollowerIdsResponse {
+  ids?: string[];
   has_next_page?: boolean;
   next_cursor?: string;
 }
@@ -159,7 +168,8 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
   command
     .command("tweets")
     .description("Get recent tweets from a user")
-    .argument("<username>", "Twitter username")
+    .argument("[username]", "Twitter username (or pass --user-id)")
+    .option("--user-id <userId>", "Twitter user ID, used instead of username")
     .option("-l, --limit <number>", "Maximum tweets to return", "20")
     .option("--cursor <cursor>", "Pagination cursor")
     .option("-r, --include-replies", "Include replies in results")
@@ -167,16 +177,22 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
     .option("-f, --fields <fields>", "Comma-separated fields to keep")
     .action(
       async (
-        username: string,
+        username: string | undefined,
         options: ReadOptions,
         commandInstance: Command,
       ) => {
+        const account = selectAccount(username, options.userId);
+        if (!account) {
+          reportUsageError(deps, "Pass a username or --user-id.");
+          return;
+        }
+
         await handleTweetList(
           commandInstance,
           deps,
           "/twitter/user/last_tweets",
           {
-            userName: extractUsername(username),
+            ...account,
             ...(options.cursor ? { cursor: options.cursor } : {}),
             ...(options.includeReplies ? { includeReplies: true } : {}),
           },
@@ -210,6 +226,52 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
           },
           options,
         );
+      },
+    );
+
+  command
+    .command("followers-ids")
+    .description("Get follower IDs in bulk, without profiles")
+    .argument("[username]", "Twitter username (or pass --user-id)")
+    .option("--user-id <userId>", "Twitter user ID, used instead of username")
+    .option("--count <number>", "IDs per page, 50 to 5000")
+    .option("--cursor <cursor>", "Pagination cursor")
+    .action(
+      async (
+        username: string | undefined,
+        options: ReadOptions,
+        commandInstance: Command,
+      ) => {
+        const account = selectAccount(username, options.userId);
+        if (!account) {
+          reportUsageError(deps, "Pass a username or --user-id.");
+          return;
+        }
+
+        const context = createExecutionContext(commandInstance, deps);
+        if (!context) {
+          return;
+        }
+
+        try {
+          const response = await context.client.getJson<FollowerIdsResponse>(
+            "/twitter/user/followers_ids",
+            {
+              ...account,
+              ...(options.count ? { count: Number(options.count) } : {}),
+              ...(options.cursor ? { cursor: options.cursor } : {}),
+            },
+          );
+          const ids = response.ids ?? [];
+          writeResult(context, {
+            ids,
+            count: ids.length,
+            has_next_page: response.has_next_page ?? false,
+            next_cursor: response.next_cursor ?? "",
+          });
+        } catch (error) {
+          handleCommandError(error, context.stderr);
+        }
       },
     );
 
@@ -360,6 +422,32 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
     );
 
   command
+    .command("subscriptions")
+    .description("Get the creators a user subscribes to")
+    .argument("<userId>", "Twitter user ID")
+    .option("--cursor <cursor>", "Pagination cursor")
+    .option("-c, --compact", "Use compact user output")
+    .option("-f, --fields <fields>", "Comma-separated fields to keep")
+    .action(
+      async (
+        userId: string,
+        options: ReadOptions,
+        commandInstance: Command,
+      ) => {
+        await handleUserList(
+          commandInstance,
+          deps,
+          "/twitter/user/subscriptions",
+          {
+            userId,
+            ...(options.cursor ? { cursor: options.cursor } : {}),
+          },
+          options,
+        );
+      },
+    );
+
+  command
     .command("about")
     .description("Get user profile about metadata")
     .argument("<username>", "Twitter username")
@@ -454,7 +542,60 @@ export function createUserCommand(deps: CommandDependencies = {}): Command {
       },
     );
 
+  for (const [name, path] of [
+    ["mute", "/twitter/mute_user_v2"],
+    ["unmute", "/twitter/unmute_user_v2"],
+    ["block", "/twitter/block_user_v2"],
+    ["unblock", "/twitter/unblock_user_v2"],
+  ] as const) {
+    command
+      .command(name)
+      .description(
+        `${name[0]?.toUpperCase() ?? ""}${name.slice(1)} a user by user ID`,
+      )
+      .argument("<userId>", "Twitter user ID")
+      .action(
+        async (
+          userId: string,
+          _options: ReadOptions,
+          commandInstance: Command,
+        ) => {
+          const context = createExecutionContext(commandInstance, deps);
+          if (!context) {
+            return;
+          }
+          const loginCookies = requireLoginCookies(context);
+          const proxy = requireProxy(context);
+          if (!loginCookies || !proxy) {
+            return;
+          }
+          try {
+            const data = await context.client.postJson<Record<string, unknown>>(
+              path,
+              appendProxy(
+                { login_cookies: loginCookies, user_id: userId },
+                proxy,
+              ),
+            );
+            writeResult(context, data);
+          } catch (error) {
+            handleCommandError(error, context.stderr);
+          }
+        },
+      );
+  }
+
   return command;
+}
+
+function selectAccount(
+  username: string | undefined,
+  userId: string | undefined,
+): { userId: string } | { userName: string } | null {
+  if (userId) {
+    return { userId };
+  }
+  return username ? { userName: extractUsername(username) } : null;
 }
 
 async function handleTweetList(

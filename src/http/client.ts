@@ -112,7 +112,23 @@ export class TwitterApiClient {
 
 function unwrapData<T>(body: unknown): T {
   if (body && typeof body === "object" && "data" in body) {
-    return (body as { data: T }).data;
+    const { data, has_next_page, next_cursor } = body as {
+      data: T;
+      has_next_page?: boolean;
+      next_cursor?: string;
+    };
+
+    // Some endpoints nest items under `data` but keep pagination at the top level.
+    if (
+      data &&
+      typeof data === "object" &&
+      !Array.isArray(data) &&
+      (has_next_page !== undefined || next_cursor !== undefined)
+    ) {
+      return { has_next_page, next_cursor, ...data };
+    }
+
+    return data;
   }
 
   return body as T;

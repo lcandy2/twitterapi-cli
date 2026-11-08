@@ -736,3 +736,302 @@ describe("TwitterApiClient", () => {
     });
   });
 });
+
+describe("endpoint coverage", () => {
+  const actionEnv = {
+    TWITTERAPI_KEY: "env-key",
+    TWITTERAPI_LOGIN_COOKIES: "cookie-string",
+    TWITTERAPI_PROXY: "http://proxy.local",
+  };
+
+  async function runCli(
+    args: string[],
+    payload: unknown,
+    env: Record<string, string> = { TWITTERAPI_KEY: "env-key" },
+  ) {
+    const stdout = { write: vi.fn(() => true) };
+    const stderr = { write: vi.fn(() => true) };
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse(payload));
+    const program = createProgram({ fetch: fetchMock, env, stdout, stderr });
+
+    await program.parseAsync(["node", "twitterapi", ...args]);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    return {
+      fetchMock,
+      stderr,
+      url: String(url),
+      init,
+      output: stdout.write.mock.calls.length
+        ? JSON.parse(String((stdout.write.mock.calls[0] as unknown[])[0]))
+        : undefined,
+    };
+  }
+
+  it.each([
+    ["tweet", "unretweet", "/twitter/unretweet_tweet_v2", "tweet_id"],
+    ["tweet", "pin", "/twitter/pin_tweet_v2", "tweet_id"],
+    ["tweet", "unpin", "/twitter/unpin_tweet_v2", "tweet_id"],
+    ["user", "mute", "/twitter/mute_user_v2", "user_id"],
+    ["user", "unmute", "/twitter/unmute_user_v2", "user_id"],
+    ["user", "block", "/twitter/block_user_v2", "user_id"],
+    ["user", "unblock", "/twitter/unblock_user_v2", "user_id"],
+  ])("posts %s %s to %s", async (group, name, path, idField) => {
+    const { url, init, output } = await runCli(
+      [group, name, "123"],
+      { status: "success" },
+      actionEnv,
+    );
+
+    expect(url).toBe(`https://api.twitterapi.io${path}`);
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      login_cookies: "cookie-string",
+      [idField]: "123",
+      proxy: "http://proxy.local",
+    });
+    expect(output).toEqual({ status: "success" });
+  });
+
+  it.each([
+    ["tweet", "unretweet"],
+    ["user", "block"],
+  ])("requires login cookies for %s %s", async (group, name) => {
+    const { fetchMock, stderr } = await runCli([group, name, "123"], {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(String(stderr.write.mock.calls[0])).toContain("Missing login");
+    process.exitCode = undefined;
+  });
+
+  it("gets follower ids by username with count and cursor", async () => {
+    const { url, output } = await runCli(
+      ["user", "followers-ids", "@jack", "--count", "50", "--cursor", "c1"],
+      {
+        ids: ["1", "2"],
+        has_next_page: true,
+        next_cursor: "c2",
+        status: "success",
+      },
+    );
+
+    expect(url).toBe(
+      "https://api.twitterapi.io/twitter/user/followers_ids?userName=jack&count=50&cursor=c1",
+    );
+    expect(output).toEqual({
+      ids: ["1", "2"],
+      count: 2,
+      has_next_page: true,
+      next_cursor: "c2",
+    });
+  });
+
+  it("gets follower ids by user id", async () => {
+    const { url } = await runCli(["user", "followers-ids", "--user-id", "12"], {
+      ids: [],
+    });
+
+    expect(url).toBe(
+      "https://api.twitterapi.io/twitter/user/followers_ids?userId=12",
+    );
+  });
+
+  it("rejects follower ids without an account", async () => {
+    const { fetchMock, stderr } = await runCli(["user", "followers-ids"], {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(String(stderr.write.mock.calls[0])).toContain("usage_error");
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+  });
+
+  it("gets compact user subscriptions", async () => {
+    const { url, output } = await runCli(
+      ["user", "subscriptions", "12", "--cursor", "c1", "--compact"],
+      {
+        users: [{ id: "1", userName: "alpha", extra: true }],
+        has_next_page: false,
+        next_cursor: null,
+        status: "success",
+      },
+    );
+
+    expect(url).toBe(
+      "https://api.twitterapi.io/twitter/user/subscriptions?userId=12&cursor=c1",
+    );
+    expect(output).toEqual({
+      users: [{ id: "1", userName: "alpha" }],
+      count: 1,
+      has_next_page: false,
+      next_cursor: "",
+    });
+  });
+
+  it("gets user tweets by id and keeps top-level pagination", async () => {
+    const { url, output } = await runCli(
+      ["user", "tweets", "--user-id", "12", "--limit", "1", "--fields", "id"],
+      {
+        status: "success",
+        data: { pin_tweet: null, tweets: [{ id: "t1" }, { id: "t2" }] },
+        has_next_page: true,
+        next_cursor: "next",
+      },
+    );
+
+    expect(url).toBe(
+      "https://api.twitterapi.io/twitter/user/last_tweets?userId=12",
+    );
+    expect(output).toEqual({
+      tweets: [{ id: "t1" }],
+      count: 1,
+      has_next_page: true,
+      next_cursor: "next",
+    });
+  });
+
+  it("still gets user tweets by username", async () => {
+    const { url } = await runCli(["user", "tweets", "jack"], {
+      data: { tweets: [] },
+    });
+
+    expect(url).toBe(
+      "https://api.twitterapi.io/twitter/user/last_tweets?userName=jack",
+    );
+  });
+
+  it("applies compact output to retweeters", async () => {
+    const { output } = await runCli(["tweet", "retweeters", "1", "--compact"], {
+      users: [{ id: "1", userName: "alpha", extra: true }],
+      has_next_page: true,
+      next_cursor: "c2",
+    });
+
+    expect(output).toEqual({
+      users: [{ id: "1", userName: "alpha" }],
+      count: 1,
+      has_next_page: true,
+      next_cursor: "c2",
+    });
+  });
+
+  it.each([
+    [[], "tweetId=1"],
+    [["--include-replies"], "tweetId=1&includeReplies=true"],
+    [["--no-include-replies"], "tweetId=1&includeReplies=false"],
+  ])("maps quote reply flags %j", async (flags, expectedQuery) => {
+    const { url } = await runCli(["tweet", "quotes", "1", ...flags], {
+      tweets: [],
+    });
+
+    expect(url).toBe(
+      `https://api.twitterapi.io/twitter/tweet/quotes?${expectedQuery}`,
+    );
+  });
+
+  it.each([
+    [["--limit", "5"], 5],
+    [["--limit", "5", "--count", "40"], 40],
+  ])("sends the bookmark page size for %j", async (flags, count) => {
+    const { init } = await runCli(
+      ["tweet", "bookmarks", ...flags],
+      { tweets: [] },
+      actionEnv,
+    );
+
+    expect(JSON.parse(String(init?.body)).count).toBe(count);
+  });
+
+  it.each([
+    ["list", "members", "members"],
+    ["list", "followers", "followers"],
+    ["community", "members", "members"],
+    ["community", "moderators", "moderators"],
+  ])("reads %s %s from the %s key", async (group, name, key) => {
+    const { output } = await runCli([group, name, "1", "--fields", "id"], {
+      [key]: [{ id: "u1", extra: true }],
+      has_next_page: true,
+      next_cursor: "c2",
+    });
+
+    expect(output).toEqual({
+      users: [{ id: "u1" }],
+      count: 1,
+      has_next_page: true,
+      next_cursor: "c2",
+    });
+  });
+
+  it("maps community member fields in compact output", async () => {
+    const { output } = await runCli(
+      ["community", "moderators", "1", "--compact"],
+      {
+        moderators: [
+          {
+            id: "u1",
+            name: "Alpha",
+            screen_name: "alpha",
+            description: "bio",
+            followers_count: 10,
+            following_count: 2,
+            profile_image_url_https: "https://example.com/a.jpg",
+            email: "ignored",
+          },
+        ],
+      },
+    );
+
+    expect(output.users).toEqual([
+      {
+        id: "u1",
+        userName: "alpha",
+        name: "Alpha",
+        description: "bio",
+        followers: 10,
+        following: 2,
+        profilePicture: "https://example.com/a.jpg",
+      },
+    ]);
+  });
+
+  it.each([[["--media-id", "m1"]], [["--media-ids", "m1"]]])(
+    "sends a single media id for dm flags %j",
+    async (flags) => {
+      const { init } = await runCli(
+        ["dm", "send", "12", "hello", ...flags],
+        { status: "success" },
+        actionEnv,
+      );
+
+      expect(JSON.parse(String(init?.body))).toEqual({
+        login_cookies: "cookie-string",
+        user_id: "12",
+        text: "hello",
+        proxy: "http://proxy.local",
+        media_id: "m1",
+      });
+    },
+  );
+
+  it("rejects several media ids on a dm", async () => {
+    const { fetchMock, stderr } = await runCli(
+      ["dm", "send", "12", "hello", "--media-ids", "m1,m2"],
+      {},
+      actionEnv,
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(String(stderr.write.mock.calls[0])).toContain("usage_error");
+    process.exitCode = undefined;
+  });
+
+  it("leaves array data unchanged when unwrapping", async () => {
+    const { output } = await runCli(["stream", "users"], {
+      status: "success",
+      data: [{ id_for_user: "1" }],
+    });
+
+    expect(output).toEqual([{ id_for_user: "1" }]);
+  });
+});
