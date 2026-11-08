@@ -1035,3 +1035,144 @@ describe("endpoint coverage", () => {
     expect(output).toEqual([{ id_for_user: "1" }]);
   });
 });
+
+describe("failures reported with HTTP 200", () => {
+  const env = {
+    TWITTERAPI_KEY: "env-key",
+    TWITTERAPI_LOGIN_COOKIES: "cookie-string",
+    TWITTERAPI_PROXY: "http://proxy.local",
+  };
+
+  async function runCli(args: string[], payload: unknown) {
+    const stdout = { write: vi.fn(() => true) };
+    const stderr = { write: vi.fn(() => true) };
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse(payload));
+    const program = createProgram({ fetch: fetchMock, env, stdout, stderr });
+
+    await program.parseAsync(["node", "twitterapi", ...args]);
+
+    const exitCode = process.exitCode;
+    process.exitCode = undefined;
+    return { stdout, stderr, exitCode };
+  }
+
+  it.each([
+    [["user", "info", "missing"]],
+    [["user", "followers", "missing"]],
+    [["user", "tweets", "missing"]],
+    [["user", "subscriptions", "1"]],
+    [["user", "followers-ids", "missing"]],
+    [["tweet", "get", "1"]],
+    [["tweet", "search", "q"]],
+    [["tweet", "bookmarks"]],
+    [["tweet", "pin", "1"]],
+    [["user", "block", "1"]],
+    [["list", "members", "1"]],
+    [["community", "moderators", "1"]],
+    [["trend", "get", "1"]],
+    [["space", "detail", "1"]],
+    [["my", "info"]],
+    [["dm", "send", "1", "hello"]],
+    [["community", "join", "1"]],
+    [["profile", "update", "--name", "x"]],
+    [["webhook", "get-rules"]],
+    [["webhook", "delete-rule", "1"]],
+    [["stream", "users"]],
+    [["auth", "login", "--user-name", "a", "--email", "b", "--password", "c"]],
+  ])("fails %j on status error", async (args) => {
+    const { stdout, stderr, exitCode } = await runCli(args, {
+      status: "error",
+      msg: "user not found",
+    });
+
+    expect(stdout.write).not.toHaveBeenCalled();
+    expect(exitCode).toBe(1);
+    expect(
+      JSON.parse(String((stderr.write.mock.calls[0] as unknown[])[0])),
+    ).toEqual({
+      type: "api_error",
+      message: "user not found",
+      status_code: 200,
+      details: { status: "error", msg: "user not found" },
+    });
+  });
+
+  it.each([
+    [
+      { status: "error", message: "not your tweet", x_status: 403, code: 34 },
+      "not your tweet",
+    ],
+    [{ status: "failed", msg: "queue rejected" }, "queue rejected"],
+    [{ status: "ERROR", msg: "", message: "from message" }, "from message"],
+    [{ status: "error" }, "TwitterAPI request failed"],
+  ])("reads the failure message from %j", async (payload, message) => {
+    const { stderr, exitCode } = await runCli(["tweet", "pin", "1"], payload);
+
+    expect(exitCode).toBe(1);
+    expect(
+      JSON.parse(String((stderr.write.mock.calls[0] as unknown[])[0])).message,
+    ).toBe(message);
+  });
+
+  it.each([
+    [{ status: "success", tweet_id: "1" }],
+    [{ status: "", tweet_id: "1" }],
+    [{ status: "ok", tweet_id: "1" }],
+    [{ status: "pending", tweet_id: "1" }],
+    [{ status: 0, tweet_id: "1" }],
+    [{ status: null, tweet_id: "1" }],
+    [{ tweet_id: "1" }],
+    [{ status: "success", code: 34, tweet_id: "1" }],
+  ])("treats %j as success", async (payload) => {
+    const { stdout, stderr, exitCode } = await runCli(
+      ["tweet", "pin", "1"],
+      payload,
+    );
+
+    expect(stderr.write).not.toHaveBeenCalled();
+    expect(exitCode).toBeUndefined();
+    expect(stdout.write).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores status fields inside the payload", async () => {
+    const { stdout, exitCode } = await runCli(["stream", "users"], {
+      status: "success",
+      data: [{ id_for_user: "1", status: "error" }],
+    });
+
+    expect(exitCode).toBeUndefined();
+    expect(stdout.write).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a suspended account as a successful lookup", async () => {
+    const { stdout, exitCode } = await runCli(["user", "info", "gone"], {
+      status: "success",
+      data: { unavailable: true, unavailableReason: "Suspended" },
+    });
+
+    expect(exitCode).toBeUndefined();
+    expect(stdout.write).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the detail field on HTTP 400 responses", async () => {
+    const fetchMock = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ detail: "userName is required" }, 400));
+    const client = new TwitterApiClient(
+      {
+        apiKey: "secret-key",
+        baseUrl: "https://api.twitterapi.io",
+        timeoutMs: 5_000,
+        output: "json",
+      },
+      fetchMock,
+    );
+
+    await expect(client.getJson("/twitter/user/info")).rejects.toMatchObject({
+      statusCode: 400,
+      message: "userName is required",
+    });
+  });
+});

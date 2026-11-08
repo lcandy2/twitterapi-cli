@@ -255,6 +255,7 @@ pnpm dev --login-cookies "$TWITTERAPI_LOGIN_COOKIES" --proxy "$TWITTERAPI_PROXY"
 ## Notes
 
 - Output is always JSON or JSONL.
+- A response with `status` set to `error` or `failed` is treated as a failure, even on HTTP 200: the error goes to stderr and the exit code is 1. That includes lookups such as `user not found`.
 - Compact field filtering is available on many user/tweet list commands via `--compact` and `--fields`.
 - Some TwitterAPI.io endpoints may report `has_next_page=true` even when the next page is empty.
 - Free-tier rate limits are strict; back off a few seconds between live smoke tests.
