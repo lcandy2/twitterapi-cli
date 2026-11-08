@@ -7,6 +7,7 @@ type Primitive = string | number | boolean;
 interface ErrorResponseBody {
   msg?: string;
   message?: string;
+  detail?: string;
   error?: string | boolean | number;
   status?: string;
 }
@@ -16,6 +17,8 @@ interface RequestOptions {
   body?: unknown;
   formData?: FormData;
 }
+
+const FAILURE_STATUSES = new Set(["error", "failed"]);
 
 export class TwitterApiError extends Error {
   readonly statusCode: number;
@@ -98,7 +101,8 @@ export class TwitterApiClient {
     const text = await response.text();
     const parsed = text ? safeJsonParse(text) : null;
 
-    if (!response.ok) {
+    // The API also reports failures with HTTP 200 and a `status` in the body.
+    if (!response.ok || isFailureBody(parsed)) {
       throw new TwitterApiError(
         readErrorMessage(parsed),
         response.status,
@@ -134,13 +138,30 @@ function unwrapData<T>(body: unknown): T {
   return body as T;
 }
 
+function isFailureBody(body: unknown): boolean {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return false;
+  }
+
+  const { status } = body as ErrorResponseBody;
+  return (
+    typeof status === "string" &&
+    FAILURE_STATUSES.has(status.trim().toLowerCase())
+  );
+}
+
 function readErrorMessage(body: unknown): string {
   if (!body || typeof body !== "object") {
     return "TwitterAPI request failed";
   }
 
   const errorBody = body as ErrorResponseBody;
-  return errorBody.msg ?? errorBody.message ?? "TwitterAPI request failed";
+  return (
+    errorBody.msg ||
+    errorBody.message ||
+    errorBody.detail ||
+    "TwitterAPI request failed"
+  );
 }
 
 function safeJsonParse(text: string): unknown {
